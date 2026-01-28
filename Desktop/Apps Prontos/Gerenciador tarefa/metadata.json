@@ -1,0 +1,7 @@
+{
+  "name": "Tecnoperfil – Gestão Industrial",
+  "description": "Uma plataforma moderna e escalável para o gerenciamento completo de atividades industriais, focada em extrusão de alumínio, PCP, qualidade e logística.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

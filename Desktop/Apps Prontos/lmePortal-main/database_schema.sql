@@ -1,0 +1,2 @@
+-- Estruturas de banco de dados inexistentes no momento.
+-- Atualize este arquivo com os comandos SQL correspondentes sempre que novas estruturas forem adicionadas.

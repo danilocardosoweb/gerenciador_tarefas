@@ -1,0 +1,1987 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard LME - Cotações de Metais</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', Arial, sans-serif;
+            background: linear-gradient(115deg, #5469d4 0%, #7c3aed 50%, #0ea5e9 100%);
+            margin: 0;
+            padding: 0;
+            color: #1f2937;
+        }
+
+        body.modo-simulacao {
+            overflow-y: auto;
+        }
+
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .header .subtitle {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+
+        .controls {
+            background: white;
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        .controls-content {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .controls label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .controls select {
+            padding: 6px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .controls select:hover {
+            border-color: #667eea;
+        }
+
+        .controls select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .metal-filters {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .chip {
+            padding: 6px 10px;
+            border-radius: 14px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #fff;
+            cursor: pointer;
+            user-select: none;
+            border: 0;
+            opacity: 0.85;
+            transition: transform .15s, opacity .15s;
+        }
+
+        .chip:hover { opacity: 1; transform: translateY(-1px); }
+        .chip.active { box-shadow: 0 0 0 2px rgba(0,0,0,.08) inset; opacity: 1; }
+
+        .tab-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .tab-button {
+            padding: 8px 18px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #fff;
+            background: #667eea;
+            cursor: pointer;
+            border: 0;
+            transition: all .2s;
+        }
+
+        .tab-button:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+
+        .tab-button.active {
+            background: linear-gradient(135deg, #4338ca, #2563eb);
+            box-shadow: 0 12px 24px rgba(37, 99, 235, 0.35);
+            transform: translateY(-1px);
+        }
+
+        #tabSimulacao {
+            min-height: calc(100vh - 190px);
+            height: auto;
+            overflow: visible;
+            padding-bottom: 24px;
+        }
+
+        .simulacao-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-auto-rows: auto;
+            gap: 24px;
+            align-items: stretch;
+            height: 100%;
+        }
+
+        .simulacao-card {
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            overflow: visible;
+            height: auto;
+        }
+
+        .resultados-card {
+            position: relative;
+        }
+
+        .resultados-cabecalho {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .resultados-acoes {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .resultados-card.collapsed .result-cards {
+            display: none;
+        }
+
+        .resultados-card.collapsed .historico-simulacoes {
+            max-height: none;
+        }
+
+        .simulacao-card h3 {
+            font-size: 1.05rem;
+            color: #111827;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .simulacao-card p {
+            font-size: 0.82rem;
+            color: #4b5563;
+            line-height: 1.45;
+        }
+
+        .simulacao-header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .dados-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .dados-meta strong {
+            color: #0f172a;
+        }
+
+        .dados-meta button {
+            border: none;
+            border-radius: 999px;
+            padding: 5px 12px;
+            font-size: 0.9rem;
+            background: linear-gradient(135deg, #38bdf8, #1d4ed8);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.28);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .dados-meta button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px rgba(37, 99, 235, 0.32);
+        }
+
+        .dados-meta-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-ajuda-simulacao {
+            background: linear-gradient(135deg, #a855f7, #6366f1);
+            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.28);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-ajuda-simulacao:hover {
+            box-shadow: 0 12px 22px rgba(99, 102, 241, 0.32);
+        }
+
+        .help-icon {
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            margin-left: 6px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #c7d2fe, #a855f7);
+            color: #fff;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .help-icon:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.32);
+        }
+
+        .help-icon:focus-visible {
+            outline: 2px solid rgba(99, 102, 241, 0.6);
+            outline-offset: 2px;
+        }
+
+        .help-popover {
+            position: fixed;
+            top: 0;
+            left: 0;
+            transform: translate(-9999px, -9999px);
+            min-width: 260px;
+            max-width: 360px;
+            width: max-content;
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+            border: 1px solid rgba(99, 102, 241, 0.18);
+            padding: 18px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 2000;
+        }
+
+        .help-popover.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .help-popover-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .help-popover-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .help-popover-close {
+            border: none;
+            background: transparent;
+            font-size: 1.1rem;
+            color: #475569;
+            cursor: pointer;
+        }
+
+        .help-popover-close:hover {
+            color: #1f2937;
+        }
+
+        .help-popover-body {
+            display: grid;
+            gap: 8px;
+            color: #334155;
+            font-size: 0.92rem;
+            line-height: 1.5;
+        }
+
+        .help-popover-body ul {
+            margin: 0 0 0 18px;
+        }
+
+        .help-popover-body li {
+            margin-bottom: 4px;
+        }
+
+        @media (max-width: 640px) {
+            .help-popover {
+                max-width: calc(100% - 32px);
+                min-width: 0;
+                padding: 16px;
+            }
+        }
+
+        .preset-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .preset-bar select {
+            min-width: 180px;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.55);
+            background: rgba(248, 250, 252, 0.92);
+            padding: 7px 11px;
+            font-size: 0.82rem;
+        }
+
+        .preset-bar button {
+            border: none;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .preset-bar button.btn-acoes-preset {
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            color: #fff;
+            box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
+        }
+
+        .preset-bar button.btn-remover-preset {
+            background: rgba(226, 232, 240, 0.85);
+            color: #1f2937;
+        }
+
+        .preset-bar button:hover {
+            transform: translateY(-1px);
+        }
+
+        .resumo-alerta {
+            margin-top: 6px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            display: none;
+        }
+
+        .resumo-alerta.alerta {
+            display: block;
+            background: rgba(248, 113, 113, 0.18);
+            color: #b91c1c;
+        }
+
+        .resumo-alerta.ok {
+            display: block;
+            background: rgba(16, 185, 129, 0.15);
+            color: #047857;
+        }
+
+        .result-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .result-card.full {
+            grid-column: span 2;
+        }
+
+        .result-card.comparativo {
+            background: rgba(37, 99, 235, 0.14);
+            border-color: rgba(37, 99, 235, 0.25);
+        }
+
+        .result-card.resumo {
+            background: rgba(236, 253, 245, 0.85);
+            border-color: rgba(16, 185, 129, 0.35);
+        }
+
+        .sensibilidade-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 14px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sensibilidade-card h4 {
+            font-size: 0.95rem;
+            color: #0f172a;
+        }
+
+        .sensibilidade-flex {
+            display: grid;
+            grid-template-columns: minmax(180px, 0.8fr) 1fr;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .sensibilidade-tabela {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+        }
+
+        .sensibilidade-tabela th,
+        .sensibilidade-tabela td {
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            padding: 6px 8px;
+            text-align: center;
+        }
+
+        .sensibilidade-tabela thead {
+            background: rgba(59, 130, 246, 0.15);
+            color: #1d4ed8;
+            font-weight: 700;
+        }
+
+        .sensibilidade-tabela tbody tr:nth-child(odd) {
+            background: rgba(248, 250, 252, 0.8);
+        }
+
+        .acoes-historico {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .acoes-historico button {
+            border: none;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: rgba(59, 130, 246, 0.15);
+            color: #1d4ed8;
+        }
+
+        .acoes-historico button:hover {
+            transform: translateY(-1px);
+        }
+
+        .grafico-secundario {
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        .grafico-secundario h4 {
+            font-size: 0.9rem;
+            color: #0f172a;
+            margin-bottom: 6px;
+        }
+
+        .info-tooltip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .info-tooltip span {
+            font-size: 0.7rem;
+            color: #475569;
+        }
+
+        .info-tooltip .icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: rgba(59, 130, 246, 0.18);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #1d4ed8;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .modal-grafico-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            max-width: 320px;
+            margin: 0 auto;
+        }
+
+        .modal-grafico {
+            width: 240px !important;
+            height: 240px !important;
+        }
+
+        .simulacao-form {
+            overflow: hidden;
+        }
+
+        .simulacao-form .form-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(160px, 1fr));
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        @media (max-width: 1320px) {
+            .simulacao-form .form-grid {
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            }
+        }
+
+        .simulacao-form label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.76rem;
+            color: #1f2937;
+            font-weight: 600;
+        }
+
+        .simulacao-form input {
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.55);
+            background: rgba(248, 250, 252, 0.92);
+            padding: 7px 11px;
+            font-size: 0.84rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .simulacao-form input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .campo-custos {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .campo-detalhar {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: flex-start;
+            justify-content: flex-start;
+            align-self: flex-start;
+        }
+
+        .btn-detalhar-custos {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 999px;
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            background: linear-gradient(135deg, rgba(96, 165, 250, 0.18), rgba(37, 99, 235, 0.34));
+            color: #0f172a;
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .btn-detalhar-custos .icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.85);
+            color: #2563eb;
+            font-size: 0.9rem;
+        }
+
+        .btn-detalhar-custos:hover {
+            background: linear-gradient(135deg, rgba(96, 165, 250, 0.3), rgba(37, 99, 235, 0.44));
+            box-shadow: 0 12px 26px rgba(37, 99, 235, 0.24);
+            transform: translateY(-1px);
+        }
+
+        .btn-detalhar-custos:active {
+            transform: translateY(1px);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.24);
+        }
+
+        .tab-button, .btn {
+            border: none;
+            border-radius: 999px;
+            padding: 7px 14px;
+            font-size: 0.74rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-primario {
+            background: linear-gradient(135deg, #22d3ee, #2563eb);
+            color: #fff;
+            box-shadow: 0 12px 24px rgba(37, 99, 235, 0.28);
+        }
+
+        .btn-secundario {
+            background: rgba(102, 126, 234, 0.15);
+            color: #1f2937;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(37, 99, 235, 0.35);
+            color: #2563eb;
+        }
+
+        .btn-micro {
+            padding: 4px 9px;
+            font-size: 0.66rem;
+            border-radius: 10px;
+        }
+
+        .simulacao-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .simulacao-actions button {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 32px;
+        }
+
+        .result-cards {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .result-card {
+            background: rgba(226, 232, 240, 0.55);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border: 1px solid rgba(148, 163, 184, 0.24);
+        }
+
+        .result-card.destaque {
+            grid-column: span 2;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(14, 116, 144, 0.2));
+            border-color: rgba(37, 99, 235, 0.25);
+        }
+
+        .result-card.positivo {
+            border-color: rgba(34, 197, 94, 0.45);
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.16), rgba(16, 185, 129, 0.12));
+        }
+
+        .result-card.negativo {
+            border-color: rgba(239, 68, 68, 0.45);
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.16), rgba(248, 113, 113, 0.12));
+        }
+
+        .result-card strong {
+            font-size: 1.05rem;
+            color: #0f172a;
+        }
+
+        .result-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #475569;
+            font-weight: 700;
+        }
+
+        .historico-simulacoes {
+            margin-top: 2px;
+            padding: 10px;
+            background: rgba(248, 250, 252, 0.85);
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.26);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 170px;
+            flex: 1;
+        }
+
+        .historico-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .historico-header h4 {
+            margin: 0;
+            font-size: 0.92rem;
+            color: #1f2937;
+            font-weight: 700;
+        }
+
+        .historico-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            overflow-y: auto;
+        }
+
+        .historico-item {
+            width: 100%;
+            border: 1px solid rgba(148, 163, 184, 0.32);
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            padding: 7px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: transform 0.15s, border-color 0.15s, background 0.15s;
+        }
+
+        .historico-item:hover {
+            transform: translateY(-1px);
+            border-color: rgba(37, 99, 235, 0.45);
+            background: rgba(237, 242, 255, 0.85);
+        }
+
+        .historico-item span {
+            font-size: 0.78rem;
+            color: #475569;
+        }
+
+        .historico-item strong {
+            font-size: 0.95rem;
+            color: #1f2937;
+        }
+
+        .historico-empty {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .grafico-card {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .grafico-secundario {
+            background: rgba(240, 249, 255, 0.85);
+            padding: 14px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 320px;
+            position: relative;
+        }
+
+        .grafico-secundario canvas {
+            width: 100% !important;
+            height: 240px !important;
+        }
+
+        .grafico-placeholder {
+            text-align: center;
+            font-size: 0.82rem;
+            color: #475569;
+            padding: 28px 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.65);
+            border: 1px dashed rgba(94, 106, 128, 0.25);
+            display: none;
+        }
+
+        .grafico-secundario.sem-dados canvas {
+            display: none;
+        }
+
+        .grafico-secundario.sem-dados .grafico-placeholder {
+            display: block;
+        }
+
+        .custos-detalhados-resumo {
+            background: rgba(240, 253, 244, 0.85);
+            padding: 16px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .custos-resumo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .custos-resumo-header small {
+            color: #64748b;
+            font-size: 0.78rem;
+        }
+
+        .custos-detalhados-resumo h4 {
+            margin: 0;
+            font-size: 16px;
+            color: #0f172a;
+        }
+
+        .custos-lista {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .custos-lista li {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 10px 12px;
+            box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .custos-lista li span {
+            font-size: 13px;
+            color: #1f2937;
+        }
+
+        .custos-lista li .valor {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .custos-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            padding: 10px 12px;
+            box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.2);
+        }
+
+        .custos-total small {
+            font-weight: 500;
+            font-size: 0.78rem;
+            color: #6b7280;
+        }
+
+        .custos-total strong {
+            font-size: 1rem;
+        }
+
+        .custos-diferenca {
+            display: block;
+            margin-top: 6px;
+            font-size: 0.78rem;
+            color: #1e293b;
+        }
+
+        /*
+            Layout atualizado em 03/11/2025 para acomodar:
+            - Cards empilhados com rolagem vertical confortável;
+            - Resumo visual de custos detalhados sincronizado com o modal;
+            - Placeholder e estrutura do gráfico multifator em barra horizontal.
+        */
+
+        .grafico-multifator {
+            background: rgba(248, 250, 255, 0.9);
+            padding: 16px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .grafico-multifator h4 {
+            margin: 0;
+            font-size: 16px;
+            color: #1d4ed8;
+        }
+
+        .grafico-multifator span {
+            font-size: 0.8rem;
+            color: #475569;
+        }
+
+        .grafico-multifator canvas {
+            width: 100% !important;
+            height: 240px !important;
+        }
+
+        .grafico-multifator.sem-dados canvas {
+            display: none;
+        }
+
+        .grafico-multifator .grafico-placeholder {
+            display: none;
+            text-align: center;
+            font-size: 0.82rem;
+            color: #475569;
+            padding: 24px 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.65);
+            border: 1px dashed rgba(94, 106, 128, 0.25);
+        }
+
+        .grafico-multifator.sem-dados .grafico-placeholder {
+            display: block;
+        }
+
+        .grafico-wrapper {
+            position: relative;
+            width: 100%;
+            height: 280px;
+        }
+
+        #graficoMargem {
+            width: 100%;
+            height: 100%;
+            max-height: 320px;
+        }
+
+        .simulacao-feedback {
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            display: none;
+            margin-bottom: 4px;
+        }
+
+        .simulacao-feedback.sucesso {
+            display: block;
+            background: rgba(16, 185, 129, 0.15);
+            color: #047857;
+        }
+
+        .simulacao-feedback.erro {
+            display: block;
+            background: rgba(248, 113, 113, 0.18);
+            color: #b91c1c;
+        }
+
+        .info-referencia {
+            font-size: 0.75rem;
+            color: #6b7280;
+            display: inline-block;
+        }
+
+        .campo-custos .info-referencia {
+            display: block;
+            margin-top: 4px;
+        }
+
+        .simulacao-scroll {
+            overflow-y: visible;
+            padding-right: 4px;
+            flex: 1;
+        }
+
+        .simulacao-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .simulacao-scroll::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.45);
+            border-radius: 10px;
+        }
+
+        .simulacao-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        @media (max-width: 1280px) {
+            #tabSimulacao {
+                height: auto;
+                overflow: visible;
+            }
+
+            .simulacao-grid {
+                gap: 18px;
+                height: auto;
+            }
+
+            .simulacao-card {
+                padding: 14px;
+            }
+
+            .simulacao-card.grafico-card {
+                order: 3;
+            }
+
+            .simulacao-scroll {
+                max-height: unset;
+            }
+
+            .result-cards {
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            }
+
+            #graficoMargem {
+                max-height: 280px;
+            }
+        }
+
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #fff;
+            border-radius: 14px;
+            padding: 20px;
+            width: min(480px, 100%);
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 1.05rem;
+            color: #1f2937;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: #475569;
+        }
+
+        .modal-body {
+            display: grid;
+            gap: 10px;
+        }
+
+        .modal-body label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.85rem;
+            color: #334155;
+        }
+
+        .modal-body input {
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            font-size: 0.9rem;
+        }
+
+        .modal-total {
+            margin-top: 6px;
+            display: flex;
+            justify-content: space-between;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-footer button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+        }
+
+        .modal-footer .btn-cancelar {
+            background: rgba(226, 232, 240, 0.8);
+            color: #1f2937;
+        }
+
+        .modal-footer .btn-confirmar {
+            background: linear-gradient(135deg, #22c55e, #0f766e);
+            color: #fff;
+            box-shadow: 0 10px 20px rgba(15, 118, 110, 0.28);
+        }
+
+        .modal-ajuda {
+            max-width: 780px;
+            width: 95%;
+        }
+
+        .modal-ajuda-body {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .modal-ajuda-body section {
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            padding: 14px 16px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+        }
+
+        .modal-ajuda-body h4 {
+            margin-bottom: 8px;
+            color: #0f172a;
+            font-size: 1rem;
+        }
+
+        .modal-ajuda-body p {
+            margin: 0 0 8px;
+            color: #334155;
+            line-height: 1.5;
+        }
+
+        .modal-ajuda-body ul,
+        .modal-ajuda-body ol {
+            margin: 0 0 8px 18px;
+            color: #334155;
+            line-height: 1.45;
+        }
+
+        .modal-ajuda-body strong {
+            color: #1f2937;
+        }
+
+        .modal-ajuda-footer {
+            justify-content: flex-end;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .periodo-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .periodo-table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .periodo-table th {
+            padding: 10px 8px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.7rem;
+            border-right: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .periodo-table th:last-child {
+            border-right: none;
+        }
+
+        .periodo-table tbody tr {
+            background: white;
+            color: #333;
+        }
+
+        .periodo-table tbody tr:nth-child(odd) {
+            background: #f9f9f9;
+        }
+
+        .periodo-table tbody tr:hover {
+            background: #e8f4f8;
+        }
+
+        .periodo-table td {
+            padding: 8px;
+            text-align: center;
+            border-right: 1px solid #e0e0e0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .periodo-table td:first-child {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .periodo-table td:last-child {
+            border-right: none;
+        }
+
+        .periodo-table .group-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            font-weight: 700;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: white !important;
+        }
+
+        .indicators {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .indicator-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            transition: transform 0.3s;
+        }
+
+        .indicator-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .indicator-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .indicator-title {
+            font-size: 0.75rem;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .indicator-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .indicator-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 6px;
+        }
+
+        .indicator-change {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .indicator-change.positive {
+            color: #10b981;
+        }
+
+        .indicator-change.negative {
+            color: #ef4444;
+        }
+
+        .indicator-change .arrow {
+            font-size: 1rem;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        .chart-card h3 {
+            font-size: 1rem;
+            color: #333;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .table-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            overflow-x: auto;
+        }
+
+        .table-card h3 {
+            font-size: 1rem;
+            color: #333;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th {
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+        }
+
+        td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        td:first-child {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        tr.semana-media {
+            background-color: #fee !important;
+            font-weight: 600;
+        }
+        
+        tr.semana-media td {
+            color: #c33;
+            border-top: 2px solid #c33;
+            border-bottom: 2px solid #c33;
+        }
+
+        tbody tr:nth-child(odd):not(.semana-media) {
+            background-color: #f9f9f9;
+        }
+
+        tbody tr:hover:not(.semana-media) {
+            background-color: #e8f4f8;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+
+            .indicator-value {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Dashboard LME</h1>
+            <p class="subtitle">Cotações de Metais - London Metal Exchange</p>
+        </div>
+
+        <div class="controls">
+            <div class="controls-content">
+                <div class="metal-filters" style="margin-top:0;flex:1">
+                    <button class="chip active" data-metal="cobre" style="background:#ef4444">COBRE</button>
+                    <button class="chip" data-metal="zinco" style="background:#8b5cf6">ZINCO</button>
+                    <button class="chip" data-metal="aluminio" style="background:#3b82f6">ALUMÍNIO</button>
+                    <button class="chip" data-metal="chumbo" style="background:#64748b">CHUMBO</button>
+                    <button class="chip" data-metal="estanho" style="background:#eab308">ESTANHO</button>
+                    <button class="chip" data-metal="niquel" style="background:#2563eb">NÍQUEL</button>
+                    <button class="chip" data-metal="dolar" style="background:#10b981">DÓLAR</button>
+                </div>
+                <div class="tab-controls">
+                    <button class="tab-button active" data-tab="tabPrincipal">Visão Geral</button>
+                    <button class="tab-button" data-tab="tabPeriodo">Dados do Período</button>
+                    <button class="tab-button" data-tab="tabSimulacao">Simulação de Preço</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba Principal: Gráficos e Indicadores -->
+        <div id="tabPrincipal" class="tab-content active">
+            <div id="indicadores" class="indicators"></div>
+
+            <div class="charts-grid">
+            <div class="chart-card">
+                <h3>Evolução Diária do Cobre</h3>
+                <div class="chart-container">
+                    <canvas id="chartDiario"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-card">
+                <h3>Evolução Semanal do Cobre</h3>
+                <div class="chart-container">
+                    <canvas id="chartSemanal"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>Evolução Mensal do Cobre</h3>
+                <div class="chart-container">
+                    <canvas id="chartMensal"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-card">
+            <h3>Tabela de Informações Diárias (Últimos 2 Meses)</h3>
+            <table id="tabelaDados">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Cobre (US$)</th>
+                        <th>Zinco (US$)</th>
+                        <th>Alumínio (US$)</th>
+                        <th>Chumbo (US$)</th>
+                        <th>Estanho (US$)</th>
+                        <th>Níquel (US$)</th>
+                        <th>Dólar (R$)</th>
+                        <th>Dólar PTAX (R$)</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelaBody">
+                    <tr>
+                        <td colspan="9" class="loading">Carregando dados...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        </div>
+        <!-- Fim Aba Principal -->
+
+        <!-- Aba Dados do Período -->
+        <div id="tabPeriodo" class="tab-content">
+            <div class="table-card">
+                <h3 id="tituloPeriodo">Dados do Período - COBRE</h3>
+                <table class="periodo-table">
+                    <thead>
+                        <tr>
+                            <th rowspan="2">Data</th>
+                            <th rowspan="2">SEG</th>
+                            <th rowspan="2">Dólar</th>
+                            <th rowspan="2">LME USD$</th>
+                            <th rowspan="2">Preço Ton.</th>
+                            <th colspan="3" class="group-header">Média Semanal</th>
+                            <th colspan="3" class="group-header">Média Mês</th>
+                        </tr>
+                        <tr>
+                            <th>Dólar</th>
+                            <th>LME USD$</th>
+                            <th>Preço Ton.</th>
+                            <th>Dólar</th>
+                            <th>LME USD$</th>
+                            <th>Preço Ton.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaPeriodoBody">
+                        <tr>
+                            <td colspan="11" class="loading">Carregando dados...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Fim Aba Período -->
+
+        <!-- Aba Simulação de Preço -->
+        <div id="tabSimulacao" class="tab-content">
+            <div class="simulacao-grid">
+                <div class="simulacao-card simulacao-form simulacao-scroll">
+                    <div class="simulacao-header">
+                        <h3>Simulação de Preço do Alumínio Extrudado <button type="button" class="help-icon" data-help="simulacao" title="Ajuste cotações, custos e margens para recalcular automaticamente preços, alertas e gráficos." aria-label="Ajuda sobre a simulação">?</button></h3>
+                        <div class="dados-meta">
+                            <span>Última atualização de cotações: <strong id="metaTimestamp">--</strong></span>
+                            <div class="dados-meta-actions">
+                                <button type="button" id="btnForcarAtualizacao">⟳ Atualizar agora</button>
+                                <button type="button" id="btnAjudaSimulacao" class="btn-ajuda-simulacao">❓ Ajuda da simulação</button>
+                            </div>
+                        </div>
+                        <div class="preset-bar">
+                            <select id="presetSelect">
+                                <option value="">Presets salvos</option>
+                            </select>
+                            <button type="button" class="btn-acoes-preset" id="btnSalvarPreset">💾 Salvar como preset</button>
+                            <button type="button" class="btn-acoes-preset" id="btnAplicarPreset">▶ Aplicar preset</button>
+                            <button type="button" class="btn-remover-preset" id="btnExcluirPreset">🗑 Excluir preset</button>
+                        </div>
+                    </div>
+                    <div class="simulacao-feedback" id="simulacaoMensagem"></div>
+                    <div class="form-grid">
+                        <label>
+                            Cotação LME (US$/tonelada)
+                            <input type="number" step="0.01" id="inputLME" value="0">
+                        </label>
+                        <label>
+                            Cotação do Dólar (R$/US$)
+                            <input type="number" step="0.0001" id="inputDolar" value="0">
+                        </label>
+                        <label>
+                            <span class="info-tooltip">Fator de Ajuste do Tarugo <span class="icon" title="Soma de prêmio, frete e perdas. Valores de referência: 25% a 35%.">i</span></span>
+                            <input type="number" step="0.01" id="inputFator" value="1.3">
+                            <span class="info-referencia">Premium + frete + perdas. Referência: 30%.</span>
+                        </label>
+                        <label class="campo-custos">
+                            <div style="flex:1">
+                                Custos Operacionais (R$/kg)
+                                <input type="number" step="0.01" id="inputCustos" value="4">
+                                <span class="info-referencia">Baseado em média setorial.</span>
+                            </div>
+                        </label>
+                        <div class="campo-detalhar">
+                            <span class="info-referencia">Ajuste os componentes antes de aplicar.</span>
+                            <button class="btn-detalhar-custos" type="button" id="btnDetalharCustos">
+                                <span class="icon">🔍</span>
+                                <span>Detalhar Custos</span>
+                            </button>
+                        </div>
+                        <label>
+                            Margem de Lucro Desejada (%)
+                            <input type="number" step="0.1" id="inputMargem" value="25">
+                        </label>
+                        <label>
+                            Margem mínima aceitável (%)
+                            <input type="number" step="0.1" id="inputMargemMinima" value="20">
+                        </label>
+                        <label>
+                            Quantidade planejada (ton)
+                            <input type="number" step="0.1" id="inputQuantidade" value="1">
+                        </label>
+                        <label>
+                            Sensibilidade (±%)
+                            <input type="number" step="1" id="inputSensibilidade" value="5">
+                        </label>
+                    </div>
+
+                    <div class="simulacao-actions">
+                        <button class="btn btn-secundario" type="button" id="btnAtualizarDados">🔄 Atualizar Dados</button>
+                        <button class="btn btn-outline" type="button" id="btnResetar">🧹 Resetar Valores</button>
+                        <button class="btn btn-primario" type="button" id="btnSalvar">💾 Salvar Simulação</button>
+                        <button class="btn btn-outline" type="button" id="btnExportar">📋 Exportar Simulação</button>
+                    </div>
+
+                    <div class="sensibilidade-card" id="sensibilidadeCard">
+                        <h4>Análise de Sensibilidade <button type="button" class="help-icon" data-help="sensibilidade" title="Matriz de cenários usando a sensibilidade definida para LME e dólar." aria-label="Ajuda sobre análise de sensibilidade">?</button></h4>
+                        <div class="sensibilidade-flex">
+                            <div>
+                                <p>Variações aplicadas sobre LME e Dólar usando o percentual definido acima.</p>
+                                <p><strong id="tituloSensibilidade">Sensibilidade ±5%</strong></p>
+                            </div>
+                            <table class="sensibilidade-tabela" id="tabelaSensibilidade">
+                                <thead>
+                                    <tr>
+                                        <th>Cenário</th>
+                                        <th>LME</th>
+                                        <th>Dólar</th>
+                                        <th>Preço kg</th>
+                                        <th>Preço ton</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="5">Calcule para exibir a matriz.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="simulacao-card simulacao-scroll resultados-card" data-estado="expandido">
+                    <div class="resultados-cabecalho">
+                        <h3>Resultados <button type="button" class="help-icon" data-help="resultados" title="Painel com preços calculados, margens e históricos desta simulação." aria-label="Ajuda sobre resultados">?</button></h3>
+                        <div class="resultados-acoes">
+                            <button class="btn btn-outline btn-micro" type="button" id="btnDuplicar">📄 Duplicar Simulação</button>
+                            <button class="btn btn-outline btn-micro" type="button" id="btnToggleResultados">⬆ Recolher</button>
+                        </div>
+                    </div>
+                    <div class="resumo-alerta" id="alertaMargem"></div>
+                    <div class="result-cards" id="resultadoCards">
+                        <div class="result-card">
+                            <span class="result-label">💰 Preço Base (R$/kg)</span>
+                            <strong id="resultadoPrecoBase">R$ 0,00</strong>
+                        </div>
+                        <div class="result-card">
+                            <span class="result-label">⚙️ Custo Total (R$/kg)</span>
+                            <strong id="resultadoCustoTotal">R$ 0,00</strong>
+                        </div>
+                        <div class="result-card">
+                            <span class="result-label">📦 Preço de Venda (R$/kg)</span>
+                            <strong id="resultadoVendaKg">R$ 0,00</strong>
+                        </div>
+                        <div class="result-card">
+                            <span class="result-label">🧱 Preço de Venda (R$/ton)</span>
+                            <strong id="resultadoVendaTon">R$ 0,00</strong>
+                        </div>
+                        <div class="result-card destaque">
+                            <span class="result-label">📊 Margem Bruta (%)</span>
+                            <strong id="resultadoMargem">0,00 %</strong>
+                        </div>
+                        <div class="result-card">
+                            <span class="result-label">📦 Quantidade (ton)</span>
+                            <strong id="resultadoQuantidade">1,00</strong>
+                        </div>
+                        <div class="result-card">
+                            <span class="result-label">💵 Receita Total (R$)</span>
+                            <strong id="resultadoReceitaTotal">R$ 0,00</strong>
+                        </div>
+                        <div class="result-card comparativo">
+                            <span class="result-label">📈 vs Média Mensal</span>
+                            <strong id="resultadoComparativoMensal">0,00 %</strong>
+                            <small id="detalheComparativo">Sem comparação disponível.</small>
+                        </div>
+                        <div class="result-card resumo full">
+                            <span class="result-label">📝 Resumo Executivo</span>
+                            <strong id="resultadoResumo">Calcule para ver o resumo.</strong>
+                        </div>
+                    </div>
+
+                    <div class="historico-simulacoes">
+                        <div class="historico-header">
+                            <h4>Histórico Local</h4>
+                            <div class="acoes-historico">
+                                <button type="button" id="btnImportarHistorico">⬆ Importar</button>
+                                <button type="button" id="btnExportarHistorico">⬇ Exportar</button>
+                                <button class="btn btn-outline btn-micro" type="button" id="btnLimparHistorico">🧽 Limpar</button>
+                            </div>
+                        </div>
+                        <ul class="historico-list" id="listaHistorico">
+                            <li class="historico-empty" id="historicoVazio">Nenhuma simulação armazenada ainda.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="simulacao-card grafico-card simulacao-scroll">
+                    <h3>Projeção por Margem <button type="button" class="help-icon" data-help="projecao" title="Bloco com custos detalhados e gráficos que mostram impactos das margens." aria-label="Ajuda sobre projeção por margem">?</button></h3>
+                    <div class="custos-detalhados-resumo" id="resumoCustosDetalhados">
+                        <div class="custos-resumo-header">
+                            <h4>Composição de Custos</h4>
+                            <small>Valores detalhados com base no modal</small>
+                        </div>
+                        <ul class="custos-lista" id="listaCustosDetalhados">
+                            <li data-chave="mao_obra">
+                                <span>Mão de obra</span>
+                                <strong class="valor">R$ 0,00</strong>
+                            </li>
+                            <li data-chave="energia">
+                                <span>Energia e gás</span>
+                                <strong class="valor">R$ 0,00</strong>
+                            </li>
+                            <li data-chave="manutencao">
+                                <span>Manutenção</span>
+                                <strong class="valor">R$ 0,00</strong>
+                            </li>
+                            <li data-chave="administracao">
+                                <span>Administração</span>
+                                <strong class="valor">R$ 0,00</strong>
+                            </li>
+                        </ul>
+                        <div class="custos-total">
+                            <div>
+                                <span>Total detalhado</span>
+                                <span class="custos-diferenca" id="textoDiferencaCustos">Diferença vs custo operacional: --</span>
+                            </div>
+                            <strong id="totalCustosDetalhados">R$ 0,00</strong>
+                        </div>
+                    </div>
+                    <div class="grafico-container">
+                        <h4>Impacto da Margem no Preço de Venda <button type="button" class="help-icon" data-help="impacto" title="Gráfico que relaciona diferentes percentuais de margem ao preço de venda." aria-label="Ajuda sobre impacto da margem">?</button></h4>
+                        <div class="grafico-wrapper">
+                            <canvas id="graficoMargem"></canvas>
+                        </div>
+                    </div>
+                    <div class="grafico-secundario">
+                        <h4>Cenários de Sensibilidade (LME x Dólar) <button type="button" class="help-icon" data-help="cenarios" title="Visualização das combinações de variação de LME e dólar com base na sensibilidade." aria-label="Ajuda sobre cenários de sensibilidade">?</button></h4>
+                        <canvas id="graficoSensibilidade" height="200"></canvas>
+                        <div class="grafico-placeholder" id="placeholderSensibilidade">
+                            Calcule a simulação para visualizar os cenários de sensibilidade.
+                        </div>
+                    </div>
+                    <div class="grafico-multifator sem-dados">
+                        <h4>Gráfico Multifator <button type="button" class="help-icon" data-help="multifator" title="Mostra a contribuição da base LME, custos e margens no preço final." aria-label="Ajuda sobre gráfico multifator">?</button></h4>
+                        <span>Percentuais convertidos em R$/kg para visualizar a participação de cada variável no preço final.</span>
+                        <canvas id="graficoMultifator" height="220"></canvas>
+                        <div class="grafico-placeholder" id="placeholderMultifator">
+                            Calcule a simulação para visualizar a composição do preço final.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Fim Aba Simulação -->
+
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+        const corpo = document.body;
+        document.querySelectorAll('.tab-button').forEach(botao => {
+            botao.addEventListener('click', () => {
+                const alvo = botao.getAttribute('data-tab');
+
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+
+                botao.classList.add('active');
+                document.getElementById(alvo).classList.add('active');
+
+                corpo.classList.remove('modo-simulacao');
+                corpo.classList.remove('grafico-expandido');
+
+                if (alvo === 'tabPeriodo') {
+                    carregarDadosPeriodo();
+                } else if (alvo === 'tabSimulacao') {
+                    corpo.classList.add('modo-simulacao');
+                    carregarSimulacao();
+                }
+            });
+        });
+    </script>
+
+    <!-- Modal Detalhar Custos -->
+    <div class="modal" id="modalCustos">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Detalhar Custos Operacionais</h3>
+                <button class="modal-close" type="button" id="modalFechar">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-grid">
+                    <div class="modal-formulario">
+                        <label>
+                            Mão de obra (R$/kg)
+                            <input type="number" step="0.01" id="custoMaoObra" value="0">
+                        </label>
+                        <label>
+                            Energia e gás (R$/kg)
+                            <input type="number" step="0.01" id="custoEnergia" value="0">
+                        </label>
+                        <label>
+                            Manutenção e consumíveis (R$/kg)
+                            <input type="number" step="0.01" id="custoManutencao" value="0">
+                        </label>
+                        <label>
+                            Administração e comercial (R$/kg)
+                            <input type="number" step="0.01" id="custoAdministracao" value="0">
+                        </label>
+                        <div class="modal-total">
+                            <span>Total calculado</span>
+                            <span id="modalTotal">R$ 0,00</span>
+                        </div>
+                    </div>
+                    <div class="modal-grafico-container">
+                        <canvas id="graficoCustos" class="modal-grafico"></canvas>
+                        <small>Distribuição percentual dos custos detalhados.</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancelar" type="button" id="modalCancelar">Cancelar</button>
+                <button class="btn-confirmar" type="button" id="modalAplicar">Aplicar Total</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ajuda Simulação -->
+    <div class="modal" id="modalAjuda">
+        <div class="modal-content modal-ajuda">
+            <div class="modal-header">
+                <h3>Guia rápido da Simulação de Preço</h3>
+                <button class="modal-close" type="button" id="modalAjudaFechar">✕</button>
+            </div>
+            <div class="modal-body modal-ajuda-body">
+                <section>
+                    <h4>Como a ferramenta funciona?</h4>
+                    <p>A simulação usa as cotações mais recentes da LME e do dólar para estimar um preço de venda em R$/kg e R$/tonelada. Ajuste os campos para refletir o seu cenário e clique em <strong>Salvar Simulação</strong> para registrar.</p>
+                    <p>Os resultados alimentam gráficos de margem, composição de custos, sensibilidade cambial e resumo executivo, facilitando negociações rápidas.</p>
+                </section>
+                <section>
+                    <h4>Campos principais</h4>
+                    <ul>
+                        <li><strong>Cotação LME</strong>: valor bruto do metal em US$/ton. Aceita ajustes manuais para cenários hipotéticos.</li>
+                        <li><strong>Cotação do Dólar</strong>: taxa de câmbio aplicada. Combine com a sensibilidade para testar variações.</li>
+                        <li><strong>Fator de Ajuste</strong>: inclui prêmio, frete e perdas (referência 25%–35%). Valores maiores elevam o preço base.</li>
+                        <li><strong>Custos Operacionais</strong>: soma em R$/kg dos custos internos. Use <strong>Detalhar Custos</strong> para distribuir por categoria.</li>
+                        <li><strong>Margem de Lucro</strong>: percentual desejado. O sistema alerta quando ficar abaixo da margem mínima aceitável.</li>
+                        <li><strong>Quantidade Planejada</strong>: quantidade em toneladas para cálculo de receita total.</li>
+                        <li><strong>Sensibilidade</strong>: percentual usado nas análises “e se” para dólar e LME.</li>
+                    </ul>
+                </section>
+                <section>
+                    <h4>Presets automáticos</h4>
+                    <p>Os presets iniciais são gerados automaticamente com base nas referências atuais:</p>
+                    <ol>
+                        <li><strong>Margem Protegida</strong>: reforça margem, aumenta custos defensivos (+5%) e aplica câmbio mais conservador.</li>
+                        <li><strong>Volume Competitivo</strong>: reduz custos (−3%) e margem para propostas agressivas, ampliando a quantidade.</li>
+                        <li><strong>Stress Cambial</strong>: simula alta conjunta de LME (+5%) e dólar (+12%) mantendo margens seguras.</li>
+                    </ol>
+                    <p>Basta selecionar um preset e clicar em <strong>Aplicar preset</strong>. Valores personalizados podem ser salvos pela opção “Salvar como preset”.</p>
+                </section>
+                <section>
+                    <h4>Dicas rápidas</h4>
+                    <ul>
+                        <li>Use o botão <strong>⟳ Atualizar agora</strong> para forçar atualização das cotações.</li>
+                        <li>O gráfico multifator mostra como custo base, custos operacionais e margem compõem o preço final.</li>
+                        <li>Observe os alertas de margem: o aviso amarelo indica margem abaixo do mínimo definido.</li>
+                        <li>Exporte a simulação para compartilhar com o time ou importar futuramente.</li>
+                    </ul>
+                </section>
+            </div>
+            <div class="modal-footer modal-ajuda-footer">
+                <button class="btn-confirmar" type="button" id="modalAjudaEntendi">Entendi</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="help-popover" id="helpPopover" role="dialog" aria-modal="false" aria-hidden="true">
+        <div class="help-popover-header">
+            <strong class="help-popover-title" id="helpPopoverTitle"></strong>
+            <button type="button" class="help-popover-close" id="helpPopoverClose" aria-label="Fechar ajuda">✕</button>
+        </div>
+        <div class="help-popover-body" id="helpPopoverBody"></div>
+    </div>
+</body>
+</html>
